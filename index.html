@@ -301,7 +301,7 @@
   </header>
 
   <!-- Timeout Box (Hidden initially) -->
-  <div id="timeout-notice" style="display: none;">
+  <div id="timeout-notice">
     <div>
       <h4>10-Minute Monitoring Window Concluded</h4>
       <p>Continuous checking halted automatically after 10 minutes. Click Restart to run another cycle.</p>
@@ -324,7 +324,7 @@
   <!-- Statistics -->
   <div class="stats-grid">
     <div class="stat-card">
-      <h3>Today's Domains</h3>
+      <h3>Today's Domains (<span id="target-date-label">--</span>)</h3>
       <div id="stat-total" class="val">0</div>
     </div>
     <div class="stat-card">
@@ -365,7 +365,7 @@
   <div id="toast-container"></div>
 
   <script>
-    // Configuration Object
+    // Configuration with your 13 accounts
     const CONFIG = {
       defaultClientId: "128820302240-k7bk8mui4lr16gvonbqb7qn76o9rgd1q.apps.googleusercontent.com",
       defaultClientSecret: "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",
@@ -399,14 +399,14 @@
     };
 
     const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_fjEEROXhiyf1kY9OpTb5U0CrbkJCuoROMB_Uui8e4x1lwq41vdZfhoq_xR0Z3C3gpkA6sC6YHfFH/pub?gid=0&single=true&output=csv";
-    const SESSION_DURATION_SECONDS = 600; // 10 minutes total
+    const SESSION_DURATION_SECONDS = 600; // 10 minutes session
 
     let domainList = []; // { domain, fullyInboxed: bool, subject: string, confirmedAt: string, checking: bool }
     let isRunning = false;
     let secondsLeftInSession = SESSION_DURATION_SECONDS;
     let tenMinInterval = null;
     let checkLoopTimeout = null;
-    const tokenCache = {}; // { [accountName]: { token, exp } }
+    const tokenCache = {};
 
     function normalizeDomain(raw) {
       if (!raw) return "";
@@ -416,6 +416,7 @@
       return d.trim();
     }
 
+    // RFC-4180 CSV parser
     function parseCSV(text) {
       const p = [];
       let row = [''];
@@ -456,64 +457,73 @@
       throw new Error("Unable to retrieve Google Sheets data");
     }
 
+    // Get today's formatted date string: DD-MM-YYYY (e.g. "02-10-2026")
+    function getTodayFormattedDDMMYYYY() {
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2, '0');
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const yyyy = now.getFullYear();
+      return `${dd}-${mm}-${yyyy}`;
+    }
+
     async function fetchDomainsFromSheet() {
-      showToast("Syncing today's domains from sheet...");
+      showToast("Syncing domains for today from sheet...");
       try {
         const csvText = await fetchCSVWithFallback(SHEET_CSV_URL);
         const rows = parseCSV(csvText);
         if (!rows || rows.length === 0) throw new Error("Empty spreadsheet");
 
-        let headerRowIndex = 0;
+        let headerRowIndex = -1;
         let domainColIdx = -1;
         let dateColIdx = -1;
 
-        for (let r = 0; r < Math.min(rows.length, 5); r++) {
+        // Locate header row containing exact 'domain' and 'date'
+        for (let r = 0; r < Math.min(rows.length, 10); r++) {
           const rowLower = rows[r].map(c => c.trim().toLowerCase());
           const dIdx = rowLower.findIndex(c => c === 'domain');
+          const dtIdx = rowLower.findIndex(c => c === 'date');
+          
           if (dIdx !== -1) {
             headerRowIndex = r;
             domainColIdx = dIdx;
-            dateColIdx = rowLower.findIndex(c => /date|day|time/i.test(c));
+            dateColIdx = dtIdx;
             break;
           }
         }
 
-        if (domainColIdx === -1) domainColIdx = 0;
+        if (domainColIdx === -1) {
+          throw new Error("Column 'Domain' not found in spreadsheet");
+        }
 
-        const today = new Date();
-        const dNum = today.getDate();
-        const mNum = today.getMonth() + 1;
-        const yNum = today.getFullYear();
-        const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-        const curDayName = dayNames[today.getDay()];
+        // Today's target string: "DD-MM-YYYY"
+        const todayTarget = getTodayFormattedDDMMYYYY();
+        document.getElementById('target-date-label').innerText = todayTarget;
 
-        const parsedRows = [];
+        const candidateDomains = [];
 
         for (let r = headerRowIndex + 1; r < rows.length; r++) {
           const cols = rows[r];
           if (!cols || cols.length <= domainColIdx) continue;
 
           const rawDomain = cols[domainColIdx];
-          const clean = normalizeDomain(rawDomain);
-          if (!clean || !clean.includes('.')) continue;
+          const cleanDomain = normalizeDomain(rawDomain);
+          if (!cleanDomain || !cleanDomain.includes('.')) continue;
 
-          let isToday = true;
-          if (dateColIdx !== -1 && cols[dateColIdx]) {
-            const rawDate = cols[dateColIdx].trim().toLowerCase();
-            isToday = rawDate.includes(curDayName) ||
-                      rawDate.includes(`${dNum}/${mNum}`) ||
-                      rawDate.includes(`${dNum}-${mNum}`) ||
-                      rawDate.includes(`${yNum}-${String(mNum).padStart(2,'0')}-${String(dNum).padStart(2,'0')}`) ||
-                      rawDate.includes(today.toLocaleDateString('en-US').toLowerCase());
+          // Check Date column with format DD-MM-YYYY
+          if (dateColIdx !== -1 && cols.length > dateColIdx) {
+            const rawDate = cols[dateColIdx].trim();
+            // Match against today's target (e.g., 02-10-2026)
+            if (rawDate !== todayTarget && !rawDate.includes(todayTarget)) {
+              continue;
+            }
           }
 
-          parsedRows.push({ domain: clean, isToday });
+          candidateDomains.push(cleanDomain);
         }
 
-        const todayMatches = parsedRows.filter(p => p.isToday).map(p => p.domain);
-        const finalCandidateList = todayMatches.length > 0 ? todayMatches : parsedRows.map(p => p.domain);
-        const deduplicated = [...new Set(finalCandidateList)];
+        const deduplicated = [...new Set(candidateDomains)];
 
+        // Retain status for previously confirmed domains
         deduplicated.forEach(d => {
           const exists = domainList.find(item => item.domain === d);
           if (!exists) {
@@ -527,16 +537,18 @@
           }
         });
 
+        // Keep only domains present for today in the sheet
         domainList = domainList.filter(item => deduplicated.includes(item.domain));
-        showToast(`Loaded ${domainList.length} domains for today`);
+        showToast(`Loaded ${domainList.length} domains matching Date: ${todayTarget}`);
         updateStats();
         renderInboxedTable();
       } catch (err) {
         showToast("Error loading sheet: " + err.message);
+        console.error(err);
       }
     }
 
-    // Gmail Access Token Generator via refresh_token
+    // Google OAuth Access Token Fetcher
     async function getAccessToken(acc) {
       const now = Date.now();
       if (tokenCache[acc.name] && tokenCache[acc.name].exp > now + 60000) {
@@ -567,7 +579,7 @@
       return data.access_token;
     }
 
-    // Fast Parallel Inbox Checking for a single domain across all 13 accounts
+    // Fast Parallel Inbox Checking across all 13 accounts
     async function verifyDomainAcrossAccounts(domain) {
       let subjectFound = "";
 
@@ -582,7 +594,7 @@
           
           const listData = await res.json();
           if (listData.messages && listData.messages.length > 0) {
-            // If we don't have a subject yet, fetch the snippet/headers
+            // Extract Subject Line if not yet found
             if (!subjectFound) {
               try {
                 const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${listData.messages[0].id}?format=metadata&metadataHeaders=Subject`, {
@@ -627,7 +639,7 @@
 
       for (const item of pendingQueue) {
         if (!isRunning) break;
-        if (item.fullyInboxed) continue; // Skip already inboxed domains
+        if (item.fullyInboxed) continue;
 
         item.checking = true;
         document.getElementById('current-checking-target').innerText = `Target: ${item.domain}`;
@@ -652,13 +664,13 @@
         }
       }
 
-      // Quick rest to prevent browser thread saturation, then loop again
+      // Continue polling pending domains until 10-minute timeout or all completed
       if (isRunning) {
-        checkLoopTimeout = setTimeout(runContinuousWorker, 2000);
+        checkLoopTimeout = setTimeout(runContinuousWorker, 1500);
       }
     }
 
-    // 10-Minute Session Countdown Handler
+    // 10-Minute Countdown Timer
     function startTenMinuteCountdown() {
       clearInterval(tenMinInterval);
       tenMinInterval = setInterval(() => {
@@ -679,9 +691,9 @@
       clearInterval(tenMinInterval);
       clearTimeout(checkLoopTimeout);
       document.getElementById('pulse-dot').classList.remove('active');
-      document.getElementById('live-activity-text').innerText = "10 minutes completed. Monitoring paused.";
+      document.getElementById('live-activity-text').innerText = "10 minutes completed. Monitoring stopped.";
       document.getElementById('timeout-notice').style.display = 'flex';
-      showToast("Monitoring window reached 10-minute limit.");
+      showToast("10-minute session concluded. Press Restart to continue.");
     }
 
     function stopMonitoringManual() {
@@ -705,12 +717,11 @@
       runContinuousWorker();
     }
 
-    // Notification Handler
     function requestNotificationPermission() {
       if ("Notification" in window) {
         Notification.requestPermission().then(permission => {
-          if (permission === "granted") showToast("Desktop notifications enabled!");
-          else showToast("Notification permission not granted");
+          if (permission === "granted") showToast("Desktop notifications active!");
+          else showToast("Notification permission was not granted.");
         });
       }
     }
@@ -724,7 +735,6 @@
       }
     }
 
-    // Render Logic
     function updateStats() {
       const total = domainList.length;
       const inboxed = domainList.filter(d => d.fullyInboxed).length;
@@ -736,6 +746,7 @@
       document.getElementById('badge-inboxed-count').innerText = `${inboxed} Domains`;
     }
 
+    // Displays strictly only the domains inboxed in all 13 accounts
     function renderInboxedTable() {
       const inboxedList = domainList.filter(d => d.fullyInboxed);
       const tbody = document.getElementById('inboxed-tbody');
@@ -765,6 +776,7 @@
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
+      document.getElementById('target-date-label').innerText = getTodayFormattedDDMMYYYY();
       await fetchDomainsFromSheet();
       restartMonitoring();
     });
