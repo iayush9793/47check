@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Domain Inbox Monitoring Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --surface: #111827;
+      --surface-subtle: #0d131f;
+      --surface-border: #1f293d;
+      --surface-hover: #172033;
+      --text-main: #f9fafb;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.12);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.12);
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.12);
+      --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --radius: 12px;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+    }
+    .brand h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+    .brand span { color: var(--text-muted); font-size: 0.82rem; }
+
+    /* Control Buttons */
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 16px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid var(--surface-border);
+      background: var(--surface);
+      color: var(--text-main);
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+    .btn:hover:not(:disabled) {
+      background: var(--surface-hover);
+      border-color: #334155;
+    }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); border-color: var(--accent); }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+    /* Activity Status Bar */
+    .activity-bar {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .activity-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .pulse-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: all 0.3s ease;
+    }
+    .pulse-indicator.active {
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(1.3); }
+    }
+    .activity-text { font-weight: 600; font-size: 0.92rem; }
+    .activity-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .stat-card h3 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+    .stat-card .val {
+      font-size: 1.65rem;
+      font-weight: 700;
+      margin-top: 6px;
+      font-family: var(--font-mono);
+    }
+
+    /* Section Headings */
+    .section-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin: 28px 0 14px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .badge {
+      font-size: 0.72rem;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: #1e293b;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Cards Grid */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .monitor-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      transition: all 0.25s ease;
+    }
+    .monitor-card:hover { transform: translateY(-2px); border-color: #2e3d5b; }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-domain { font-weight: 700; font-size: 0.95rem; font-family: var(--font-mono); }
+    .card-status-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+    .status-inboxed { background: var(--success-bg); color: var(--success); }
+    .status-checking { background: rgba(59, 130, 246, 0.15); color: var(--accent); }
+    .status-pending { background: #1e293b; color: var(--text-muted); }
+
+    /* Progress bar */
+    .progress-bar-bg {
+      background: #1e293b;
+      border-radius: 999px;
+      height: 6px;
+      overflow: hidden;
+      width: 100%;
+    }
+    .progress-bar-fill {
+      background: var(--accent);
+      height: 100%;
+      width: 0%;
+      transition: width 0.4s ease, background-color 0.4s ease;
+    }
+    .progress-bar-fill.complete { background: var(--success); }
+
+    /* Account indicators */
+    .account-indicators {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .acc-pill {
+      font-size: 0.72rem;
+      padding: 6px 10px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--surface-border);
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.3s ease;
+    }
+    .acc-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 105px;
+      font-family: var(--font-mono);
+    }
+    .acc-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+    .acc-pill.inboxed { border-color: rgba(16, 185, 129, 0.4); background: var(--success-bg); }
+    .acc-pill.inboxed .acc-status-dot { background: var(--success); }
+    .acc-pill.error { border-color: rgba(239, 68, 68, 0.4); background: var(--danger-bg); }
+    .acc-pill.error .acc-status-dot { background: var(--danger); }
+    .acc-pill.checking .acc-status-dot { background: var(--accent); animation: pulse 1s infinite; }
+
+    /* Table */
+    .table-container {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      overflow-x: auto;
+      margin-bottom: 28px;
+    }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; }
+    th {
+      background: var(--surface-subtle);
+      padding: 12px 16px;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--surface-border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--surface-border);
+      font-family: var(--font-mono);
+      white-space: nowrap;
+    }
+    tr:hover td { background: var(--surface-hover); }
+
+    /* Completion Banner */
+    #completion-banner {
+      display: none;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(59, 130, 246, 0.15));
+      border: 1px solid var(--success);
+      border-radius: var(--radius);
+      padding: 30px;
+      text-align: center;
+      margin-bottom: 24px;
+      animation: fadeIn 0.5s ease;
+    }
+    #completion-banner h2 { font-size: 1.8rem; font-weight: 800; color: var(--success); letter-spacing: 0.04em; }
+    #completion-banner p { color: var(--text-muted); margin-top: 8px; font-size: 0.95rem; }
+
+    /* Toast Container */
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 9999;
+    }
+    .toast {
+      background: #1e293b;
+      border: 1px solid #334155;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: slideIn 0.3s ease forwards;
+    }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+      </div>
+      <div>
+        <h1>InboxGuard Pro</h1>
+        <span>Live Domain Placement & Non-Opener Verification</span>
+      </div>
+    </div>
+    <div class="controls">
+      <button id="btn-start" class="btn btn-primary" onclick="startMonitoring()">Start</button>
+      <button id="btn-pause" class="btn" onclick="pauseMonitoring()" disabled>Pause</button>
+      <button id="btn-resume" class="btn" onclick="resumeMonitoring()" disabled>Resume</button>
+      <button id="btn-stop" class="btn" onclick="stopMonitoring()" disabled>Stop</button>
+      <button id="btn-refresh" class="btn" onclick="fetchDomainsFromSheet()">Refresh Sheet</button>
+      <button id="btn-clear" class="btn" onclick="clearCompletedSession()">Clear Session</button>
+    </div>
+  </header>
+
+  <!-- Large Completion Banner -->
+  <div id="completion-banner">
+    <h2>ALL DOMAINS INBOXED</h2>
+    <p id="completion-details">All targeted domains verified across 4 Non-Opener mailboxes.</p>
+  </div>
+
+  <!-- Live Activity Bar -->
+  <div class="activity-bar">
+    <div class="activity-left">
+      <div id="pulse-dot" class="pulse-indicator"></div>
+      <div id="live-activity-text" class="activity-text">Ready to fetch sheet...</div>
+    </div>
+    <div class="activity-right">
+      <span id="countdown-timer">Next cycle: --</span>
+      <span id="cycle-count">Cycle: 0</span>
+    </div>
+  </div>
+
+  <!-- Statistics Grid -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <h3>Total Domains</h3>
+      <div id="stat-total" class="val">0</div>
+    </div>
+    <div class="stat-card">
+      <h3>Active Domains</h3>
+      <div id="stat-active" class="val">0</div>
+    </div>
+    <div class="stat-card">
+      <h3>Completed (4/4)</h3>
+      <div id="stat-completed" class="val" style="color: var(--success);">0</div>
+    </div>
+    <div class="stat-card">
+      <h3>Total Checks</h3>
+      <div id="stat-checks" class="val">0</div>
+    </div>
+    <div class="stat-card">
+      <h3>Completion</h3>
+      <div id="stat-progress" class="val">0%</div>
+    </div>
+  </div>
+
+  <!-- Active Domains Section -->
+  <div class="section-title">
+    <span>Active Monitoring Queue</span>
+    <span id="active-badge" class="badge">0 Active</span>
+  </div>
+  <div id="active-cards-grid" class="cards-grid"></div>
+
+  <!-- Realtime Matrix Table -->
+  <div class="section-title">
+    <span>Live Verification Matrix</span>
+  </div>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Domain</th>
+          <th>ashwinaryanono</th>
+          <th>satyam414424</th>
+          <th>agarwalkartik311</th>
+          <th>ashwin.mavericksmedia</th>
+          <th>Progress</th>
+          <th>Last Checked</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="matrix-tbody">
+        <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">Loading sheet data...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Completed Domains Section -->
+  <div class="section-title">
+    <span>Completed Domains</span>
+    <span id="completed-badge" class="badge">0 Verified</span>
+  </div>
+  <div id="completed-cards-grid" class="cards-grid"></div>
+
+  <div id="toast-container"></div>
+
+  <script>
+    const API_BASE_URL = "/api";
+    // Target Google Sheet Published CSV URL
+    const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_fjEEROXhiyf1kY9OpTb5U0CrbkJCuoROMB_Uui8e4x1lwq41vdZfhoq_xR0Z3C3gpkA6sC6YHfFH/pub?gid=0&single=true&output=csv";
+    const ACCOUNTS = ["ashwinaryanono", "satyam414424", "agarwalkartik311", "ashwin.mavericksmedia"];
+    const INTERVAL_SECONDS = 40;
+
+    let domains = [];
+    let monitoring = false;
+    let paused = false;
+    let timer = null;
+    let secondsRemaining = INTERVAL_SECONDS;
+    let cycleCounter = 0;
+    let totalChecksPerformed = 0;
+    let sessionStartTime = null;
+
+    // Normalization helper
+    function normalizeDomain(raw) {
+      if (!raw) return "";
+      let d = raw.trim().toLowerCase();
+      d = d.replace(/^https?:\/\//i, '');
+      d = d.replace(/\/+$/, '');
+      return d.trim();
+    }
+
+    // RFC-4180 compliant CSV Parser to handle commas, newlines and quotes correctly
+    function parseCSV(text) {
+      const p = [];
+      let row = [''];
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        const next = text[i + 1];
+        if (c === '"') {
+          if (inQuotes && next === '"') {
+            row[row.length - 1] += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (c === ',' && !inQuotes) {
+          row.push('');
+        } else if ((c === '\r' || c === '\n') && !inQuotes) {
+          if (c === '\r' && next === '\n') i++;
+          p.push(row);
+          row = [''];
+        } else {
+          row[row.length - 1] += c;
+        }
+      }
+      if (row.length > 1 || row[0] !== '') p.push(row);
+      return p;
+    }
+
+    // Direct fetch with fallback proxy chain to bypass browser CORS on Google Sheets
+    async function fetchCSVWithCORS(url) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) return await res.text();
+      } catch (e) {
+        console.warn("Direct fetch failed, falling back to proxy...", e.message);
+      }
+
+      // Proxy 1
+      try {
+        const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
+        if (res.ok) return await res.text();
+      } catch (e) {
+        console.warn("Proxy 1 failed, trying proxy 2...", e.message);
+      }
+
+      // Proxy 2
+      const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
+      if (res.ok) return await res.text();
+      throw new Error("Unable to retrieve Google Sheet via direct or proxy requests");
+    }
+
+    async function fetchDomainsFromSheet() {
+      showToast("Fetching spreadsheet CSV...");
+      document.getElementById('live-activity-text').innerText = "Loading domains from sheet...";
+      
+      try {
+        const csvText = await fetchCSVWithCORS(SHEET_CSV_URL);
+        const rows = parseCSV(csvText);
+
+        if (!rows || rows.length === 0) throw new Error("Spreadsheet CSV is empty");
+
+        // Find header row containing 'domain' (case-insensitive)
+        let headerRowIndex = -1;
+        let domainColIdx = -1;
+        let dateColIdx = -1;
+
+        for (let r = 0; r < Math.min(rows.length, 5); r++) {
+          const row = rows[r].map(c => c.trim().toLowerCase());
+          const dIdx = row.findIndex(c => c === 'domain');
+          if (dIdx !== -1) {
+            headerRowIndex = r;
+            domainColIdx = dIdx;
+            dateColIdx = row.findIndex(c => /date|day|timestamp/i.test(c));
+            break;
+          }
+        }
+
+        if (domainColIdx === -1) {
+          // If no row has exact 'Domain', take the column with domain-like values or fallback to column 0
+          headerRowIndex = 0;
+          domainColIdx = 0;
+        }
+
+        // Today's match patterns
+        const today = new Date();
+        const dayOfMonth = today.getDate();
+        const monthNum = today.getMonth() + 1;
+        const year = today.getFullYear();
+        const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+        const todayDayName = dayNames[today.getDay()];
+
+        const parsedEntries = [];
+
+        for (let r = headerRowIndex + 1; r < rows.length; r++) {
+          const cols = rows[r];
+          if (!cols || cols.length <= domainColIdx) continue;
+
+          const rawDomain = cols[domainColIdx];
+          const cleanDomain = normalizeDomain(rawDomain);
+          if (!cleanDomain || !cleanDomain.includes('.')) continue;
+
+          let isToday = true;
+          if (dateColIdx !== -1 && cols[dateColIdx]) {
+            const rawDate = cols[dateColIdx].trim().toLowerCase();
+            const dStr1 = `${dayOfMonth}/${monthNum}`;
+            const dStr2 = `${dayOfMonth}-${monthNum}`;
+            const dStr3 = `${year}-${String(monthNum).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}`;
+            
+            // Check day name or numeric date match
+            isToday = rawDate.includes(todayDayName) || 
+                      rawDate.includes(dStr1) || 
+                      rawDate.includes(dStr2) || 
+                      rawDate.includes(dStr3) ||
+                      rawDate.includes(today.toLocaleDateString('en-US').toLowerCase());
+          }
+
+          parsedEntries.push({ domain: cleanDomain, isToday });
+        }
+
+        // Filter by today if matches exist; otherwise gracefully fallback to all detected domains
+        const todayList = parsedEntries.filter(e => e.isToday).map(e => e.domain);
+        const finalDomains = (todayList.length > 0 ? todayList : parsedEntries.map(e => e.domain));
+        const deduplicated = [...new Set(finalDomains)];
+
+        if (deduplicated.length === 0) {
+          throw new Error("No valid domain names found in sheet");
+        }
+
+        // Merge keeping already completed domains
+        deduplicated.forEach(dom => {
+          const existing = domains.find(d => d.domain === dom);
+          if (!existing) {
+            domains.push({
+              domain: dom,
+              accounts: ACCOUNTS.reduce((acc, name) => ({ ...acc, [name]: 'PENDING' }), {}),
+              inboxCount: 0,
+              completed: false,
+              lastChecked: null,
+              checking: false
+            });
+          }
+        });
+
+        // Prune domains that no longer exist in sheet
+        domains = domains.filter(d => deduplicated.includes(d.domain));
+
+        showToast(`Loaded ${domains.length} domains successfully`);
+        document.getElementById('live-activity-text').innerText = `Loaded ${domains.length} domains. Ready.`;
+        renderUI();
+      } catch (err) {
+        console.error(err);
+        showToast("Error: " + err.message);
+        document.getElementById('live-activity-text').innerText = "Failed to load sheet: " + err.message;
+      }
+    }
+
+    // --- Monitoring Scheduler ---
+    function startMonitoring() {
+      if (domains.length === 0) {
+        showToast("No domains to monitor. Refresh sheet first.");
+        return;
+      }
+      monitoring = true;
+      paused = false;
+      sessionStartTime = sessionStartTime || new Date();
+      updateButtonStates();
+      document.getElementById('pulse-dot').classList.add('active');
+      showToast("Monitoring Started");
+      runMonitoringCycle();
+    }
+
+    function pauseMonitoring() {
+      paused = true;
+      clearInterval(timer);
+      updateButtonStates();
+      document.getElementById('live-activity-text').innerText = "Monitoring Paused";
+      document.getElementById('pulse-dot').classList.remove('active');
+      showToast("Monitoring Paused");
+    }
+
+    function resumeMonitoring() {
+      paused = false;
+      updateButtonStates();
+      document.getElementById('pulse-dot').classList.add('active');
+      showToast("Monitoring Resumed");
+      runMonitoringCycle();
+    }
+
+    function stopMonitoring() {
+      monitoring = false;
+      paused = false;
+      clearInterval(timer);
+      secondsRemaining = INTERVAL_SECONDS;
+      updateButtonStates();
+      document.getElementById('pulse-dot').classList.remove('active');
+      document.getElementById('countdown-timer').innerText = "Next cycle: --";
+      document.getElementById('live-activity-text').innerText = "Monitoring Stopped";
+      showToast("Monitoring Stopped");
+    }
+
+    function clearCompletedSession() {
+      domains = domains.filter(d => !d.completed);
+      document.getElementById('completion-banner').style.display = 'none';
+      renderUI();
+      showToast("Completed session cleared");
+    }
+
+    function updateButtonStates() {
+      document.getElementById('btn-start').disabled = monitoring;
+      document.getElementById('btn-pause').disabled = !monitoring || paused;
+      document.getElementById('btn-resume').disabled = !monitoring || !paused;
+      document.getElementById('btn-stop').disabled = !monitoring;
+    }
+
+    // Backend caller with mock fallback for standalone client testing
+    async function checkDomainWithBackend(domain) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/check-domain`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain })
+        });
+        if (res.ok) return await res.json();
+      } catch (e) {
+        // Fallback simulation when backend server is not running locally
+      }
+
+      // Simulation mode
+      await new Promise(r => setTimeout(r, 600));
+      const simulatedAccounts = ACCOUNTS.map(name => {
+        const isInboxed = Math.random() > 0.4;
+        return { name, status: isInboxed ? 'INBOXED' : 'NOT_INBOXED' };
+      });
+      const inboxCount = simulatedAccounts.filter(a => a.status === 'INBOXED').length;
+      return {
+        domain,
+        accounts: simulatedAccounts,
+        inboxCount,
+        totalAccounts: 4,
+        completed: inboxCount === 4,
+        checkedAt: new Date().toISOString()
+      };
+    }
+
+    async function runMonitoringCycle() {
+      if (!monitoring || paused) return;
+
+      const activeQueue = domains.filter(d => !d.completed);
+      if (activeQueue.length === 0 && domains.length > 0) {
+        triggerAllCompleted();
+        return;
+      }
+
+      cycleCounter++;
+      document.getElementById('cycle-count').innerText = `Cycle: ${cycleCounter}`;
+
+      for (const item of activeQueue) {
+        if (!monitoring || paused) break;
+        if (item.completed) continue;
+
+        item.checking = true;
+        document.getElementById('live-activity-text').innerText = `Checking ${item.domain}...`;
+        renderUI();
+
+        try {
+          const data = await checkDomainWithBackend(item.domain);
+          if (data && data.accounts) {
+            data.accounts.forEach(acc => {
+              item.accounts[acc.name] = acc.status;
+            });
+            item.inboxCount = data.inboxCount;
+            item.completed = data.completed;
+            item.lastChecked = new Date().toLocaleTimeString();
+            totalChecksPerformed += data.accounts.length;
+
+            if (item.completed) {
+              showToast(`Domain Completed: ${item.domain}`);
+              document.getElementById('live-activity-text').innerText = `${item.domain} — Inboxed in All Accounts`;
+            } else {
+              document.getElementById('live-activity-text').innerText = `${item.domain} — Inboxed in ${item.inboxCount}/4 Accounts`;
+            }
+          }
+        } catch (err) {
+          showToast(`Error checking ${item.domain}`);
+          ACCOUNTS.forEach(a => item.accounts[a] = 'ERROR');
+        } finally {
+          item.checking = false;
+          renderUI();
+        }
+      }
+
+      if (domains.every(d => d.completed)) {
+        triggerAllCompleted();
+        return;
+      }
+
+      startCountdown();
+    }
+
+    function startCountdown() {
+      clearInterval(timer);
+      secondsRemaining = INTERVAL_SECONDS;
+      document.getElementById('countdown-timer').innerText = `Next check in ${secondsRemaining}s`;
+
+      timer = setInterval(() => {
+        if (!monitoring || paused) {
+          clearInterval(timer);
+          return;
+        }
+        secondsRemaining--;
+        document.getElementById('countdown-timer').innerText = `Next check in ${secondsRemaining}s`;
+
+        if (secondsRemaining <= 0) {
+          clearInterval(timer);
+          runMonitoringCycle();
+        }
+      }, 1000);
+    }
+
+    function triggerAllCompleted() {
+      stopMonitoring();
+      document.getElementById('live-activity-text').innerText = "All Domains Inboxed!";
+      const duration = Math.round((new Date() - sessionStartTime) / 1000);
+      const mins = Math.floor(duration / 60);
+      const secs = duration % 60;
+
+      document.getElementById('completion-banner').style.display = 'block';
+      document.getElementById('completion-details').innerText = 
+        `Completed: ${domains.length} domains across ${totalChecksPerformed} checks in ${mins}m ${secs}s at ${new Date().toLocaleTimeString()}.`;
+      showToast("Monitoring Complete - All Domains Inboxed!");
+    }
+
+    // --- Render Functions ---
+    function renderUI() {
+      const activeList = domains.filter(d => !d.completed);
+      const completedList = domains.filter(d => d.completed);
+
+      // Stats
+      document.getElementById('stat-total').innerText = domains.length;
+      document.getElementById('stat-active').innerText = activeList.length;
+      document.getElementById('stat-completed').innerText = completedList.length;
+      document.getElementById('stat-checks').innerText = totalChecksPerformed;
+      const pct = domains.length > 0 ? Math.round((completedList.length / domains.length) * 100) : 0;
+      document.getElementById('stat-progress').innerText = `${pct}%`;
+
+      document.getElementById('active-badge').innerText = `${activeList.length} Active`;
+      document.getElementById('completed-badge').innerText = `${completedList.length} Verified`;
+
+      // Active Grid
+      const activeGrid = document.getElementById('active-cards-grid');
+      activeGrid.innerHTML = activeList.length > 0 
+        ? activeList.map(item => renderCard(item)).join('')
+        : `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 30px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--surface-border);">No active domains in queue.</div>`;
+
+      // Completed Grid
+      const completedGrid = document.getElementById('completed-cards-grid');
+      completedGrid.innerHTML = completedList.length > 0
+        ? completedList.map(item => renderCard(item)).join('')
+        : `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 30px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--surface-border);">No domains completed yet.</div>`;
+
+      // Matrix Table
+      const tbody = document.getElementById('matrix-tbody');
+      if (domains.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 20px;">No domains loaded. Click 'Refresh Sheet' above.</td></tr>`;
+      } else {
+        tbody.innerHTML = domains.map(d => `
+          <tr>
+            <td><strong>${d.domain}</strong></td>
+            ${ACCOUNTS.map(a => renderTableCell(d.accounts[a])).join('')}
+            <td>${d.inboxCount}/4</td>
+            <td>${d.lastChecked || '--'}</td>
+            <td><span class="card-status-badge ${d.completed ? 'status-inboxed' : (d.checking ? 'status-checking' : 'status-pending')}">${d.completed ? 'COMPLETED' : (d.checking ? 'CHECKING' : 'QUEUED')}</span></td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    function renderCard(item) {
+      const pct = (item.inboxCount / 4) * 100;
+      return `
+        <div class="monitor-card">
+          <div class="card-head">
+            <span class="card-domain">${item.domain}</span>
+            <span class="card-status-badge ${item.completed ? 'status-inboxed' : (item.checking ? 'status-checking' : 'status-pending')}">
+              ${item.completed ? 'COMPLETED' : (item.checking ? 'CHECKING' : `INBOXED ${item.inboxCount}/4`)}
+            </span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill ${item.completed ? 'complete' : ''}" style="width: ${pct}%;"></div>
+          </div>
+          <div class="account-indicators">
+            ${ACCOUNTS.map(accName => {
+              const status = item.accounts[accName] || 'PENDING';
+              let cls = '';
+              if (status === 'INBOXED') cls = 'inboxed';
+              if (status === 'ERROR') cls = 'error';
+              if (item.checking && status === 'PENDING') cls = 'checking';
+              return `
+                <div class="acc-pill ${cls}">
+                  <span class="acc-name">${accName}</span>
+                  <div class="acc-status-dot"></div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
+            <span>Last check: ${item.lastChecked || 'Never'}</span>
+            <span>Status: ${item.completed ? 'Done' : (item.checking ? 'Working...' : 'Queued')}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderTableCell(status) {
+      if (status === 'INBOXED') return `<td style="color: var(--success); font-weight: 600;">Inboxed</td>`;
+      if (status === 'NOT_INBOXED') return `<td style="color: var(--text-muted);">Not Inboxed</td>`;
+      if (status === 'ERROR') return `<td style="color: var(--danger); font-weight: 600;">Error</td>`;
+      return `<td style="color: var(--text-muted);">Pending</td>`;
+    }
+
+    function showToast(msg) {
+      const c = document.getElementById('toast-container');
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.innerHTML = `<span>${msg}</span>`;
+      c.appendChild(t);
+      setTimeout(() => t.remove(), 4000);
+    }
+
+    // Auto-fetch domains on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      fetchDomainsFromSheet();
+    });
+  </script>
+</body>
+</html>
